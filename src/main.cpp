@@ -17,7 +17,7 @@ uint16_t ModbusDATA2[8];
 
 
 static pico_cpp::GPIO_Pin ledPin(25,pico_cpp::PinType::Output);
-void vTaskCode( void * pvParameters )
+void vTaskMaster( void * pvParameters )
 {
     /* The parameter value is expected to be 1 as 1 is passed in the
     pvParameters value in the call to xTaskCreate() below. 
@@ -42,16 +42,14 @@ void vTaskCode( void * pvParameters )
     telegram[1].u16CoilsNo = 8; // number of elements (coils or registers) to read
     telegram[1].u16reg = ModbusDATA; // pointer to a memory array in the Arduino
     
-    for( ;; )
+    for(;;)
     {
             
             //if(xSemaphoreTake(ModbusH.ModBusSphrHandle , 500) == pdTRUE)
             //{
-            //    
-            //    gpio_put(PICO_DEFAULT_LED_PIN, ModbusDATA[0] & 0x01 );                
+            //    gpio_put(PICO_DEFAULT_LED_PIN, ModbusDATA2[0] & 0x01 );
             //    xSemaphoreGive( ModbusH.ModBusSphrHandle );               
             //}
-            
             
 	        ModbusQuery(&ModbusH, telegram[1]); // make a query
 	        u32NotificationValue = ulTaskNotifyTake(pdTRUE, portMAX_DELAY); // block until query finishes
@@ -61,8 +59,8 @@ void vTaskCode( void * pvParameters )
 		    //  while(1);
 	        }
             vTaskDelay(100);
-            ModbusDATA[0] = ModbusDATA[1]++;
-            
+
+            ModbusDATA[0]++;
         
 	        ModbusQuery(&ModbusH, telegram[0]); // make a query
 	        u32NotificationValue = ulTaskNotifyTake(pdTRUE, portMAX_DELAY); // block until query finishes
@@ -72,12 +70,20 @@ void vTaskCode( void * pvParameters )
 		    //  while(1);
 	        }
             vTaskDelay(100);
-
                                   
     }
 }
 
-
+void vTaskSlave( void * pvParameters )
+{
+    for(;;)
+    {
+        xSemaphoreTake(ModbusH2.ModBusSphrHandle , portMAX_DELAY);
+        gpio_put(PICO_DEFAULT_LED_PIN, ModbusDATA2[0] & 0x01 );
+        xSemaphoreGive(ModbusH2.ModBusSphrHandle);
+        vTaskDelay(100);
+    }
+}
 
 #define UART0_TX_PIN 0
 #define UART0_RX_PIN 1
@@ -101,25 +107,38 @@ void initSerial()
 }
 
 
+void initLED()
+{
+    gpio_init(PICO_DEFAULT_LED_PIN);
+    gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
+}
 
 
 int main() {
 
 
-BaseType_t xReturned;
-TaskHandle_t xHandle = NULL;
+BaseType_t xReturnedMaster, xReturnedSlave;
+TaskHandle_t xHandleMaster = NULL, xHandleSlave = NULL;
 
 initSerial();
-
+initLED();
 
 /* Create the task, storing the handle. */
-    xReturned = xTaskCreate(
-                    vTaskCode,       /* Function that implements the task. */
-                    "Blinky task",   /* Text name for the task. */
+    xReturnedMaster = xTaskCreate(
+                    vTaskMaster,       /* Function that implements the task. */
+                    "Master task",   /* Text name for the task. */
                     512,             /* Stack size in words, not bytes. */
                     ( void * ) 1,    /* Parameter passed into the task. */
                     tskIDLE_PRIORITY,/* Priority at which the task is created. */
-                    &xHandle );   
+                    &xHandleMaster );
+
+    xReturnedSlave = xTaskCreate(
+                    vTaskSlave,       /* Function that implements the task. */
+                    "Slave task",   /* Text name for the task. */
+                    512,             /* Stack size in words, not bytes. */
+                    ( void * ) 1,    /* Parameter passed into the task. */
+                    tskIDLE_PRIORITY,/* Priority at which the task is created. */
+                    &xHandleSlave );
 
 
   //ModbusH.uModbusType = MB_SLAVE;

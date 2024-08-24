@@ -1,12 +1,10 @@
 cmake_minimum_required(VERSION 3.12)
 
-#include(pico_sdk_import.cmake)
+# include(pico_sdk_import.cmake)
 # initialize the SDK based on PICO_SDK_PATH
 # note: this must happen before project()
 
 include(pico_sdk_import.cmake)
-
-add_subdirectory(pico-cpp)
 
 project(test_modbus C CXX ASM)
 set(CMAKE_C_STANDARD 11)
@@ -14,6 +12,8 @@ set(CMAKE_CXX_STANDARD 17)
 
 
 pico_sdk_init()
+
+add_subdirectory(pico-cpp)
 
 add_executable(test_modbus
     src/main.cpp 
@@ -47,6 +47,6 @@ pico_add_extra_outputs(test_modbus)
 target_link_libraries(test_modbus FreeRTOS pico-cpp Modbus)
 add_custom_command(TARGET test_modbus
         POST_BUILD 
-        COMMAND arm-none-eabi-size test_modbus.elf
+        COMMAND "C:/Program Files/Raspberry Pi/Pico SDK v1.5.1/gcc-arm-none-eabi/bin/arm-none-eabi-size.exe" test_modbus.elf
         )
 # rest of your project
