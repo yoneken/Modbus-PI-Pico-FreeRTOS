@@ -80,6 +80,7 @@ void vTaskSlave( void * pvParameters )
     {
         xSemaphoreTake(ModbusH2.ModBusSphrHandle , portMAX_DELAY);
         gpio_put(PICO_DEFAULT_LED_PIN, ModbusDATA2[0] & 0x01 );
+        printf("Data %d\n", ModbusDATA2[0]);
         xSemaphoreGive(ModbusH2.ModBusSphrHandle);
         vTaskDelay(100);
     }
@@ -115,7 +116,7 @@ void initLED()
 
 
 int main() {
-
+stdio_init_all();
 
 BaseType_t xReturnedMaster, xReturnedSlave;
 TaskHandle_t xHandleMaster = NULL, xHandleSlave = NULL;
@@ -177,6 +178,8 @@ initLED();
   ModbusStart(&ModbusH2);
 
   vTaskStartScheduler();
+
+  printf("Hello, world!\n");
   while(1)
   {
       configASSERT(0);    /* We should never get here */
