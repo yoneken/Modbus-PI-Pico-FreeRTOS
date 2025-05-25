@@ -12,9 +12,9 @@
 //}
 
 modbusHandler_t ModbusH;
-uint16_t ModbusDATA[8];
+uint16_t ModbusDATA[0x8ff];
 modbusHandler_t ModbusH2;
-uint16_t ModbusDATA2[8];
+uint16_t ModbusDATA2[0x8ff];
 
 /*
 Register address Description
@@ -42,7 +42,7 @@ Fn1xx Control Parameters
 Number, Name, Setting range, Unit, Factory setting, Effective time, Register address
 Fn100, enable the gripper, 0-1, -, 0, immediately, 0x0100
 Fn101, control mode, 0-2 0：location 1：speed, -, 0, immediately 0x0101
-Fn109, fault reset, 0-1, -, 0, immediately, 0x0109  
+Fn109, fault reset, 0-1, -, 0, immediately, 0x0109
 
 Fn2xx Gain Parameters
 Fn200, position loop gain, 10-20000, 0.1Hz, 200, immediately, 0x0200
@@ -98,16 +98,14 @@ void vTaskMaster( void * pvParameters )
 
     telegram[0].u8id = 8; // slave address
     telegram[0].u8fct = MB_FC_WRITE_MULTIPLE_REGISTERS; // function code (this one is registers read)
-    //telegram[0].u16RegAdd = 0x160; // start address in slave
-    telegram[0].u16RegAdd = 0x0; // start address in slave
+    telegram[0].u16RegAdd = 0x030; // start address in slave
     telegram[0].u16CoilsNo = 1; // number of elements (coils or registers) to read
     telegram[0].u16reg = ModbusDATA; // pointer to a memory array in the Arduino
 
 
     telegram[1].u8id = 8; // slave address
     telegram[1].u8fct = MB_FC_READ_REGISTERS; // function code (this one is registers read)
-    //telegram[0].u16RegAdd = 0x160; // start address in slave
-    telegram[1].u16RegAdd = 0x0; // start address in slave
+    telegram[1].u16RegAdd = 0x030; // start address in slave
     telegram[1].u16CoilsNo = 8; // number of elements (coils or registers) to read
     telegram[1].u16reg = ModbusDATA; // pointer to a memory array in the Arduino
     
@@ -124,8 +122,8 @@ void vTaskMaster( void * pvParameters )
             vTaskDelay(100);
 
             if(xSemaphoreTake(ModbusH.ModBusSphrHandle , portMAX_DELAY) == pdTRUE){
-                printf("Master %d\n", ModbusDATA[0]);
-                ModbusDATA[0]++;
+                printf("Master %d\n", ModbusDATA[0x0]);
+                ModbusDATA[0x0]++;
                 xSemaphoreGive(ModbusH.ModBusSphrHandle);
             }
         
@@ -146,8 +144,8 @@ void vTaskSlave( void * pvParameters )
     for(;;)
     {
         if(xSemaphoreTake(ModbusH2.ModBusSphrHandle , portMAX_DELAY) == pdTRUE){
-            gpio_put(PICO_DEFAULT_LED_PIN, ModbusDATA2[0] & 0x01 );
-            printf("Slave %d\n", ModbusDATA2[0]);
+            gpio_put(PICO_DEFAULT_LED_PIN, ModbusDATA2[0x030] & 0x01 );
+            printf("Slave %d\n", ModbusDATA2[0x030]);
             xSemaphoreGive(ModbusH2.ModBusSphrHandle);
         }
         vTaskDelay(100);
