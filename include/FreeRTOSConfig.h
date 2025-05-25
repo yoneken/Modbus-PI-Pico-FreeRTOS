@@ -73,6 +73,8 @@
 #endif
 #define configUSE_PASSIVE_IDLE_HOOK             0
 #endif
+#define configSMP_SPINLOCK_0  0
+#define configSMP_SPINLOCK_1  1
 
 /* RP2040 specific */
 #define configSUPPORT_PICO_SYNC_INTEROP         1

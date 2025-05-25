@@ -12,7 +12,7 @@ if (EXISTS ${picoVscode})
     include(${picoVscode})
 endif()
 set(picoSdk ${USERHOME}/.pico-sdk)
-add_definitions(-DPICO_RP2040)
+add_definitions(-DPICO_RP2040 -DFREE_RTOS_KERNEL_SMP -DLIB_PICO_MULTICORE=1)
 # ====================================================================================
 set(PICO_BOARD pico CACHE STRING "Board type")
 
@@ -69,6 +69,7 @@ ${picoSdk}/sdk/2.1.1/src/rp2_common/hardware_clocks/include
 ${picoSdk}/sdk/2.1.1/src/rp2_common/hardware_exception/include
 ${picoSdk}/sdk/2.1.1/src/rp2_common/hardware_irq/include
 ${picoSdk}/sdk/2.1.1/src/rp2_common/hardware_timer/include
+${picoSdk}/sdk/2.1.1/src/rp2_common/pico_multicore/include
 ${picoSdk}/sdk/2.1.1/src/rp2040/pico_platform/include
 ${picoSdk}/sdk/2.1.1/src/rp2040/hardware_regs/include
 ${picoSdk}/sdk/2.1.1/src/rp2040/hardware_structs/include
@@ -83,7 +84,7 @@ target_include_directories(Modbus PUBLIC FreeRTOS-Kernel/include include/ FreeRT
 
 # create map/bin/hex/uf2 file in addition to ELF.
 pico_add_extra_outputs(test_modbus)
-target_link_libraries(test_modbus hardware_exception FreeRTOS pico-cpp Modbus)
+target_link_libraries(test_modbus hardware_exception pico_multicore FreeRTOS pico-cpp Modbus)
 add_custom_command(TARGET test_modbus
         POST_BUILD 
         COMMAND arm-none-eabi-size test_modbus.elf
