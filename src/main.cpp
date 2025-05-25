@@ -12,7 +12,7 @@
 //}
 
 modbusHandler_t ModbusH;
-uint16_t ModbusDATA[0x8ff];
+uint16_t ModbusDATA[24];
 modbusHandler_t ModbusH2;
 uint16_t ModbusDATA2[0x8ff];
 
