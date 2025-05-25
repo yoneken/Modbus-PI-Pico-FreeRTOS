@@ -161,13 +161,13 @@ void vTaskSlave( void * pvParameters )
 
 void initSerial()
 {
-    uart_init(uart0, 115200);
+    uart_init(uart0, 1000000);
     gpio_set_function(UART0_TX_PIN, GPIO_FUNC_UART);
     gpio_set_function(UART0_RX_PIN, GPIO_FUNC_UART);
     uart_set_fifo_enabled(uart0, false);
 
 
-    uart_init(uart1, 115200);
+    uart_init(uart1, 1000000);
     gpio_set_function(UART1_TX_PIN, GPIO_FUNC_UART);
     gpio_set_function(UART1_RX_PIN, GPIO_FUNC_UART);
     uart_set_fifo_enabled(uart1, false);
