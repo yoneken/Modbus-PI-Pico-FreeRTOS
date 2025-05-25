@@ -81,6 +81,9 @@ add_library(Modbus STATIC MODBUS-LIB/Src/Modbus.c)
 target_link_libraries(Modbus pico_stdlib hardware_uart)
 target_include_directories(Modbus PUBLIC FreeRTOS-Kernel/include include/ FreeRTOS-Kernel/portable/ThirdParty/GCC/RP2040/include MODBUS-LIB/Inc)
 
+# enable usb output, disable uart output
+pico_enable_stdio_usb(test_modbus 1)
+pico_enable_stdio_uart(test_modbus 0)
 
 # create map/bin/hex/uf2 file in addition to ELF.
 pico_add_extra_outputs(test_modbus)
