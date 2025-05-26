@@ -7,9 +7,10 @@
 #include "Modbus.h"
 #include <array>
 
-//extern "C" {
-//  #include "can2040.h"
-//}
+extern "C" {
+  #include "can2040.h"
+  #include "hardware/irq.h"
+}
 
 modbusHandler_t ModbusH;
 uint16_t ModbusDATA[24];
@@ -19,24 +20,24 @@ uint16_t ModbusDATA2[0x8ff];
 /*
 Register address Description
 Monitoring Group
-0x0000 status
-0x0001 speed (r / min)
-0x0002 current percentage
-0x0003 current (A)
-0x0004 command position (p)
-0x0006 motor position (p)
-0x0008 position error (p)
-0x000F current alarm code
-0x0010 current value when alarm occurs
-0x0011 speed value when alarm occurs
-0x0012 input voltage value when alarm occurs
-0x0020 calibration value of the 6-axis force sensor (12 bytes)
-0x0030 X Force
-0x0034 Y Force
-0x0038 Z Force
-0x0040 X Torque
-0x0044 Y Torque
-0x0048 Z Torque
+0x000 status
+0x001 speed (r / min)
+0x002 current percentage
+0x003 current (A)
+0x004 command position (p)
+0x006 motor position (p)
+0x008 position error (p)
+0x00F current alarm code
+0x010 current value when alarm occurs
+0x011 speed value when alarm occurs
+0x012 input voltage value when alarm occurs
+0x020 calibration value of the 6-axis force sensor (12 bytes)
+0x030 X Force
+0x034 Y Force
+0x038 Z Force
+0x040 X Torque
+0x044 Y Torque
+0x048 Z Torque
 
 Fn1xx Control Parameters
 Number, Name, Setting range, Unit, Factory setting, Effective time, Register address
@@ -85,6 +86,40 @@ Fn806, rated voltage, 1-6000, 0.01V, 2400, effective after power on, 0x0806
 Fn807, rated current, 1-2400, 0.01A, 800, effective after power on, 0x0807
 */
 
+static struct can2040 cbus;
+
+static void
+can2040_cb(struct can2040 *cd, uint32_t notify, struct can2040_msg *msg)
+{
+    // Add message processing code here...
+}
+
+static void
+PIOx_IRQHandler(void)
+{
+    can2040_pio_irq_handler(&cbus);
+}
+
+void
+canbus_setup(void)
+{
+    uint32_t pio_num = 0;
+    uint32_t sys_clock = 125000000, bitrate = 500000;
+    uint32_t gpio_rx = 4, gpio_tx = 5;
+
+    // Setup canbus
+    can2040_setup(&cbus, pio_num);
+    can2040_callback_config(&cbus, can2040_cb);
+
+    // Enable irqs
+    //irq_set_exclusive_handler(PIO0_IRQ_0_IRQn, PIOx_IRQHandler);
+    //NVIC_SetPriority(PIO0_IRQ_0_IRQn, 1);
+    //NVIC_EnableIRQ(PIO0_IRQ_0_IRQn);
+
+    // Start canbus
+    can2040_start(&cbus, sys_clock, bitrate, gpio_rx, gpio_tx);
+}
+
 static pico_cpp::GPIO_Pin ledPin(25,pico_cpp::PinType::Output);
 void vTaskMaster( void * pvParameters )
 {
@@ -122,7 +157,7 @@ void vTaskMaster( void * pvParameters )
             vTaskDelay(100);
 
             if(xSemaphoreTake(ModbusH.ModBusSphrHandle , portMAX_DELAY) == pdTRUE){
-                printf("Master %d\n", ModbusDATA[0x0]);
+                printf("Core %u: Master %d\n", get_core_num(), ModbusDATA[0x0]);
                 ModbusDATA[0x0]++;
                 xSemaphoreGive(ModbusH.ModBusSphrHandle);
             }
@@ -145,7 +180,7 @@ void vTaskSlave( void * pvParameters )
     {
         if(xSemaphoreTake(ModbusH2.ModBusSphrHandle , portMAX_DELAY) == pdTRUE){
             gpio_put(PICO_DEFAULT_LED_PIN, ModbusDATA2[0x030] & 0x01 );
-            printf("Slave %d\n", ModbusDATA2[0x030]);
+            printf("Core %u: Slave %d\n", get_core_num(), ModbusDATA2[0x030]);
             xSemaphoreGive(ModbusH2.ModBusSphrHandle);
         }
         vTaskDelay(100);
@@ -161,13 +196,13 @@ void vTaskSlave( void * pvParameters )
 
 void initSerial()
 {
-    uart_init(uart0, 1000000);
+    uart_init(uart0, 100000);
     gpio_set_function(UART0_TX_PIN, GPIO_FUNC_UART);
     gpio_set_function(UART0_RX_PIN, GPIO_FUNC_UART);
     uart_set_fifo_enabled(uart0, false);
 
 
-    uart_init(uart1, 1000000);
+    uart_init(uart1, 100000);
     gpio_set_function(UART1_TX_PIN, GPIO_FUNC_UART);
     gpio_set_function(UART1_RX_PIN, GPIO_FUNC_UART);
     uart_set_fifo_enabled(uart1, false);
@@ -208,7 +243,11 @@ int main() {
                     tskIDLE_PRIORITY,/* Priority at which the task is created. */
                     &xHandleSlave );
 
-    // force to run on core1
+    // force to run Master task on core0
+    uxCoreAffinityMask = ( ( 1 << 0 ));
+    vTaskCoreAffinitySet( xHandleMaster, uxCoreAffinityMask );
+
+    // force to run Slave task on core1
     uxCoreAffinityMask = ( ( 1 << 1 ));
     vTaskCoreAffinitySet( xHandleSlave, uxCoreAffinityMask );
 
