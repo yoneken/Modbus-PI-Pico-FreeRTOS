@@ -86,7 +86,7 @@ target_link_libraries(Modbus pico_stdlib hardware_uart)
 target_include_directories(Modbus PUBLIC FreeRTOS-Kernel/include include/ FreeRTOS-Kernel/portable/ThirdParty/GCC/RP2040/include MODBUS-LIB/Inc)
 
 add_library(Can2040 STATIC src/can2040.c)
-target_link_libraries(Can2040 pico_stdlib hardware_uart hardware_pio)
+target_link_libraries(Can2040 pico_stdlib hardware_uart)
 target_include_directories(Can2040 PUBLIC
 include/
 FreeRTOS-Kernel/portable/ThirdParty/GCC/RP2040/include
@@ -98,7 +98,7 @@ pico_enable_stdio_uart(test_modbus 0)
 
 # create map/bin/hex/uf2 file in addition to ELF.
 pico_add_extra_outputs(test_modbus)
-target_link_libraries(test_modbus hardware_exception pico_multicore FreeRTOS Can2040 pico-cpp Modbus hardware_pio)
+target_link_libraries(test_modbus hardware_exception pico_multicore FreeRTOS Can2040 pico-cpp Modbus)
 add_custom_command(TARGET test_modbus
         POST_BUILD 
         COMMAND arm-none-eabi-size test_modbus.elf

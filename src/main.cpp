@@ -172,7 +172,6 @@ SemaphoreHandle_t CanTxSphrHandle = NULL;
 void vTaskCanTransmit( void * pvParameters )
 {
     can2040_msg send_respond_encoder_data_msg;
-    //send_respond_encoder_data_msg.id = (0 << 7) | (28 << 1) | CAN2040_ID_RTR; // 0 is the slave address, 28 is the function code
     send_respond_encoder_data_msg.id = (0 << 7) | (61 << 1); // 0 is the slave address, 61 is the function code
     send_respond_encoder_data_msg.dlc = 5; // Data Length Code
     send_respond_encoder_data_msg.data[0] = 0x0A;
@@ -184,18 +183,36 @@ void vTaskCanTransmit( void * pvParameters )
     for(;;)
     {
         if(xSemaphoreTake(CanTxSphrHandle , portMAX_DELAY) == pdTRUE){
-            if ( flag == 0 ) {
-                send_respond_encoder_data_msg.data[0] = 0x64;
-                flag = 1;
-            } else {
-                send_respond_encoder_data_msg.data[0] = 0x0A;
-                flag = 0;
+            switch (flag) {
+                case 0:
+                    // Calibration
+                    send_respond_encoder_data_msg.id = (0 << 7) | (62 << 1);
+                    send_respond_encoder_data_msg.dlc = 0;
+                    flag = 1;
+                    break;
+                case 1:
+                    send_respond_encoder_data_msg.id = (0 << 7) | (61 << 1);
+                    send_respond_encoder_data_msg.dlc = 5;
+                    send_respond_encoder_data_msg.data[0] = 0x64;
+                    flag = 2;
+                    break;
+                case 2:
+                    send_respond_encoder_data_msg.id = (0 << 7) | (61 << 1);
+                    send_respond_encoder_data_msg.dlc = 5;
+                    send_respond_encoder_data_msg.data[0] = 0x0A;
+                    flag = 3;
+                    break;
+                case 3:
+                    send_respond_encoder_data_msg.id = (0 << 7) | (28 << 1) | CAN2040_ID_RTR;
+                    send_respond_encoder_data_msg.dlc = 0;
+                    flag = 0;
+                    break;
             }
             result = can2040_transmit(&cbus, &send_respond_encoder_data_msg);
             printf("Core %u: CanTransmit %d %d\n", get_core_num(), result, counter++);
             xSemaphoreGive(CanTxSphrHandle);
         }
-        vTaskDelay(1000);
+        vTaskDelay(3000);
     }
 }
 
