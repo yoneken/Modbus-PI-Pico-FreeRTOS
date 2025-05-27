@@ -87,37 +87,19 @@ Fn807, rated current, 1-2400, 0.01A, 800, effective after power on, 0x0807
 */
 
 static struct can2040 cbus;
+volatile uint8_t flag = 0;
+uint16_t counter = 0;
 
-static void
-can2040_cb(struct can2040 *cd, uint32_t notify, struct can2040_msg *msg)
+static void can2040_cb(struct can2040 *cd, uint32_t notify, struct can2040_msg *msg)
 {
-    // Add message processing code here...
+    printf("Core %u: Can Receive ID %d :(%d) %d\n", get_core_num(), (msg->id >> 7) & 0xF, (msg->id >> 1) & 0x3F, msg->dlc);
+    //gpio_put(PICO_DEFAULT_LED_PIN, flag & 0x01 );
+    //flag = !flag;
 }
 
-static void
-PIOx_IRQHandler(void)
+static void PIOx_IRQHandler(void)
 {
     can2040_pio_irq_handler(&cbus);
-}
-
-void
-canbus_setup(void)
-{
-    uint32_t pio_num = 0;
-    uint32_t sys_clock = 125000000, bitrate = 500000;
-    uint32_t gpio_rx = 4, gpio_tx = 5;
-
-    // Setup canbus
-    can2040_setup(&cbus, pio_num);
-    can2040_callback_config(&cbus, can2040_cb);
-
-    // Enable irqs
-    //irq_set_exclusive_handler(PIO0_IRQ_0_IRQn, PIOx_IRQHandler);
-    //NVIC_SetPriority(PIO0_IRQ_0_IRQn, 1);
-    //NVIC_EnableIRQ(PIO0_IRQ_0_IRQn);
-
-    // Start canbus
-    can2040_start(&cbus, sys_clock, bitrate, gpio_rx, gpio_tx);
 }
 
 static pico_cpp::GPIO_Pin ledPin(25,pico_cpp::PinType::Output);
@@ -146,7 +128,6 @@ void vTaskMaster( void * pvParameters )
     
     for(;;)
     {
-            
 	        ModbusQuery(&ModbusH, telegram[1]); // make a query
 	        u32NotificationValue = ulTaskNotifyTake(pdTRUE, portMAX_DELAY); // block until query finishes
 	        if(u32NotificationValue)
@@ -154,10 +135,10 @@ void vTaskMaster( void * pvParameters )
 	  	    //handle error
 		    //  while(1);
 	        }
-            vTaskDelay(100);
+            vTaskDelay(200);
 
             if(xSemaphoreTake(ModbusH.ModBusSphrHandle , portMAX_DELAY) == pdTRUE){
-                printf("Core %u: Master %d\n", get_core_num(), ModbusDATA[0x0]);
+                //printf("Core %u: Master %d\n", get_core_num(), ModbusDATA[0x0]);
                 ModbusDATA[0x0]++;
                 xSemaphoreGive(ModbusH.ModBusSphrHandle);
             }
@@ -169,8 +150,7 @@ void vTaskMaster( void * pvParameters )
 	  	    //handle error
 		    //  while(1);
 	        }
-            vTaskDelay(100);
-                                  
+            vTaskDelay(200);
     }
 }
 
@@ -179,11 +159,43 @@ void vTaskSlave( void * pvParameters )
     for(;;)
     {
         if(xSemaphoreTake(ModbusH2.ModBusSphrHandle , portMAX_DELAY) == pdTRUE){
-            gpio_put(PICO_DEFAULT_LED_PIN, ModbusDATA2[0x030] & 0x01 );
-            printf("Core %u: Slave %d\n", get_core_num(), ModbusDATA2[0x030]);
+            //gpio_put(PICO_DEFAULT_LED_PIN, ModbusDATA2[0x030] & 0x01 );
+            //printf("Core %u: Slave %d\n", get_core_num(), ModbusDATA2[0x030]);
             xSemaphoreGive(ModbusH2.ModBusSphrHandle);
         }
-        vTaskDelay(100);
+        vTaskDelay(500);
+    }
+}
+
+SemaphoreHandle_t CanTxSphrHandle = NULL;
+
+void vTaskCanTransmit( void * pvParameters )
+{
+    can2040_msg send_respond_encoder_data_msg;
+    //send_respond_encoder_data_msg.id = (0 << 7) | (28 << 1) | CAN2040_ID_RTR; // 0 is the slave address, 28 is the function code
+    send_respond_encoder_data_msg.id = (0 << 7) | (61 << 1); // 0 is the slave address, 61 is the function code
+    send_respond_encoder_data_msg.dlc = 5; // Data Length Code
+    send_respond_encoder_data_msg.data[0] = 0x0A;
+    send_respond_encoder_data_msg.data[1] = 0x14;
+    send_respond_encoder_data_msg.data[2] = 0x01;
+    send_respond_encoder_data_msg.data[3] = 0xF4;
+    send_respond_encoder_data_msg.data[4] = 0xC0;
+    int result = 0;
+    for(;;)
+    {
+        if(xSemaphoreTake(CanTxSphrHandle , portMAX_DELAY) == pdTRUE){
+            if ( flag == 0 ) {
+                send_respond_encoder_data_msg.data[0] = 0x64;
+                flag = 1;
+            } else {
+                send_respond_encoder_data_msg.data[0] = 0x0A;
+                flag = 0;
+            }
+            result = can2040_transmit(&cbus, &send_respond_encoder_data_msg);
+            printf("Core %u: CanTransmit %d %d\n", get_core_num(), result, counter++);
+            xSemaphoreGive(CanTxSphrHandle);
+        }
+        vTaskDelay(1000);
     }
 }
 
@@ -209,6 +221,26 @@ void initSerial()
 }
 
 
+void initCanbus(void)
+{
+    uint32_t pio_num = 0;
+    uint32_t sys_clock = 125000000, bitrate = 1000000;
+    uint32_t gpio_rx = 6, gpio_tx = 7;
+
+    // Setup canbus
+    can2040_setup(&cbus, pio_num);
+    can2040_callback_config(&cbus, can2040_cb);
+
+    // Enable irqs
+    irq_set_exclusive_handler(PIO0_IRQ_0, PIOx_IRQHandler);
+    irq_set_priority(PIO0_IRQ_0, 1);
+    irq_set_enabled(PIO0_IRQ_0, 1);
+
+    // Start canbus
+    can2040_start(&cbus, sys_clock, bitrate, gpio_rx, gpio_tx);
+}
+
+
 void initLED()
 {
     gpio_init(PICO_DEFAULT_LED_PIN);
@@ -219,12 +251,16 @@ void initLED()
 int main() {
     stdio_init_all();
 
-    BaseType_t xReturnedMaster, xReturnedSlave;
-    TaskHandle_t xHandleMaster = NULL, xHandleSlave = NULL;
+    BaseType_t xReturnedMaster, xReturnedSlave, xReturnedCanTransmit;
+    TaskHandle_t xHandleMaster = NULL, xHandleSlave = NULL, xHandleCanTransmit = NULL;
     UBaseType_t uxCoreAffinityMask;
 
     initSerial();
     initLED();
+    initCanbus();
+
+    CanTxSphrHandle = xSemaphoreCreateBinary();
+    xSemaphoreGive(CanTxSphrHandle);
 
     /* Create the task, storing the handle. */
     xReturnedMaster = xTaskCreate(
@@ -242,6 +278,14 @@ int main() {
                     ( void * ) 1,    /* Parameter passed into the task. */
                     tskIDLE_PRIORITY,/* Priority at which the task is created. */
                     &xHandleSlave );
+
+    xReturnedCanTransmit = xTaskCreate(
+                    vTaskCanTransmit,
+                    "Can Transmit task",
+                    512,             /* Stack size in words, not bytes. */
+                    ( void * ) 1,    /* Parameter passed into the task. */
+                    tskIDLE_PRIORITY,/* Priority at which the task is created. */
+                    &xHandleCanTransmit );
 
     // force to run Master task on core0
     uxCoreAffinityMask = ( ( 1 << 0 ));

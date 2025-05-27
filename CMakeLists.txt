@@ -37,6 +37,10 @@ add_executable(test_modbus
     src/main.cpp 
 )
 
+target_include_directories(test_modbus PUBLIC
+    include/
+    ${picoSdk}/sdk/2.1.1/src/rp2_common/hardware_irq/include
+)
 # Add pico_stdlib library which aggregates commonly used features
 target_link_libraries(test_modbus pico_stdlib hardware_uart)
 
@@ -81,13 +85,20 @@ add_library(Modbus STATIC MODBUS-LIB/Src/Modbus.c)
 target_link_libraries(Modbus pico_stdlib hardware_uart)
 target_include_directories(Modbus PUBLIC FreeRTOS-Kernel/include include/ FreeRTOS-Kernel/portable/ThirdParty/GCC/RP2040/include MODBUS-LIB/Inc)
 
+add_library(Can2040 STATIC src/can2040.c)
+target_link_libraries(Can2040 pico_stdlib hardware_uart hardware_pio)
+target_include_directories(Can2040 PUBLIC
+include/
+FreeRTOS-Kernel/portable/ThirdParty/GCC/RP2040/include
+${picoSdk}/sdk/2.1.1/src/rp2040/hardware_regs/include)
+
 # enable usb output, disable uart output
 pico_enable_stdio_usb(test_modbus 1)
 pico_enable_stdio_uart(test_modbus 0)
 
 # create map/bin/hex/uf2 file in addition to ELF.
 pico_add_extra_outputs(test_modbus)
-target_link_libraries(test_modbus hardware_exception pico_multicore FreeRTOS pico-cpp Modbus)
+target_link_libraries(test_modbus hardware_exception pico_multicore FreeRTOS Can2040 pico-cpp Modbus hardware_pio)
 add_custom_command(TARGET test_modbus
         POST_BUILD 
         COMMAND arm-none-eabi-size test_modbus.elf
